@@ -1,979 +1,140 @@
-<!doctype html>
+from pathlib import Path
+import zipfile
+
+html = r'''<!doctype html>
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>RADIOLOCATOR — Fonte Perdida</title>
-
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#050907">
+<title>RADIOLOCATOR 2.0</title>
 <style>
-:root{
-  --text:#e0ffec;
-  --muted:#8eb6a3;
-  --accent:#42f58d;
-  --warn:#ffd166;
-}
-
-*{
-  box-sizing:border-box;
-}
-
-html,body{
-  width:100%;
-  height:100%;
-  overflow:hidden;
-}
-
-body{
-  margin:0;
-  background:#07100c;
-  color:var(--text);
-  font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
-}
-
-main{
-  height:100dvh;
-  max-width:760px;
-  margin:auto;
-  padding:8px 10px;
-  display:flex;
-  flex-direction:column;
-  gap:7px;
-}
-
-.head{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-}
-
-.tag{
-  font:700 10px monospace;
-  color:var(--accent);
-  letter-spacing:1.5px;
-}
-
-.mission{
-  font-size:clamp(22px,7vw,34px);
-  font-weight:900;
-  line-height:.95;
-  margin:2px 0;
-}
-
-.sub,
-.legend,
-.card:has(details),
-#result{
-  display:none;
-}
-
-.card{
-  background:#0b1711;
-  border:1px solid #244436;
-  border-radius:13px;
-  padding:7px;
-  margin:0;
-}
-
-/* DISPLAY DO DETECTOR */
-
-.reading{
-  text-align:center;
-  display:grid;
-  grid-template-columns:1fr auto;
-  align-items:center;
-}
-
-.reading .unit{
-  font:700 10px monospace;
-  color:var(--muted);
-  letter-spacing:1.4px;
-}
-
-.reading .num{
-  font:900 clamp(42px,14vw,76px)/.85 monospace;
-  color:var(--accent);
-  text-shadow:0 0 20px #42f58d55;
-  grid-row:2;
-}
-
-.reading>.unit:nth-of-type(2){
-  grid-row:2;
-  font-size:12px;
-}
-
-.bar{
-  grid-column:1/3;
-  height:7px;
-  background:#07100c;
-  border-radius:99px;
-  overflow:hidden;
-  margin:4px 0;
-}
-
-.bar i{
-  display:block;
-  height:100%;
-  width:10%;
-  background:var(--accent);
-  box-shadow:0 0 15px #42f58d88;
-  transition:.25s;
-}
-
-.status{
-  grid-column:1/3;
-  text-align:center;
-  font-size:11px;
-  font-weight:900;
-  letter-spacing:1px;
-  min-height:15px;
-}
-
-.status span{
-  color:var(--warn);
-}
-
-/* INDICADORES */
-
-.grid{
-  display:grid;
-  grid-template-columns:repeat(4,1fr);
-  gap:5px;
-}
-
-.metric{
-  background:#08110d;
-  border:1px solid #1b332a;
-  border-radius:8px;
-  padding:5px;
-  text-align:center;
-}
-
-.metric b{
-  display:block;
-  font:700 clamp(10px,3vw,16px) monospace;
-  white-space:nowrap;
-}
-
-.metric small{
-  display:block;
-  color:var(--muted);
-  font-size:8px;
-}
-
-/* MAPA */
-
-.card:has(#map){
-  display:flex;
-  flex-direction:column;
-  flex:1;
-  min-height:0;
-  padding:7px;
-}
-
-#map{
-  width:100%;
-  flex:1;
-  min-height:180px;
-  background:#07100c;
-  border:1px solid #234238;
-  border-radius:12px;
-  position:relative;
-  overflow:hidden;
-  touch-action:none;
-}
-
-.gridlines{
-  position:absolute;
-  inset:0;
-  background-image:
-    linear-gradient(#1c3a2f 1px,transparent 1px),
-    linear-gradient(90deg,#1c3a2f 1px,transparent 1px);
-  background-size:10% 10%;
-  opacity:.45;
-}
-
-.dot{
-  position:absolute;
-  transform:translate(-50%,-50%);
-  width:17px;
-  height:17px;
-  border-radius:50%;
-  background:#fff;
-  box-shadow:0 0 18px #fff;
-}
-
-.dot.you{
-  background:#42f58d;
-  box-shadow:0 0 18px #42f58d;
-}
-
-.source{
-  display:none;
-  background:#ffd166;
-  box-shadow:0 0 25px #ffd166;
-}
-
-/* BOTÕES */
-
-.controls{
-  display:flex;
-  gap:7px;
-}
-
-.controls button{
-  flex:1;
-  border:1px solid #2b5c48;
-  background:#12271e;
-  color:var(--text);
-  border-radius:10px;
-  padding:11px 6px;
-  font-weight:900;
-  font-size:12px;
-  cursor:pointer;
-}
-
-.controls button.primary{
-  background:#1b5138;
-  border-color:#42f58d;
-  color:#dffff0;
-}
-
-.controls button:disabled{
-  opacity:.45;
-}
-
-/* TELAS BAIXAS */
-
-@media(max-height:650px){
-
-  main{
-    padding-top:5px;
-    gap:4px;
-  }
-
-  .mission{
-    font-size:22px;
-  }
-
-  .card{
-    padding:5px;
-  }
-
-  .reading{
-    padding:4px 8px;
-  }
-
-  .reading .num{
-    font-size:40px;
-  }
-
-  .metric{
-    padding:3px;
-  }
-
-  .controls button{
-    padding:8px 5px;
-  }
-
-  #map{
-    min-height:150px;
-  }
-}
+:root{--bg:#050907;--panel:#0b1510;--line:#244436;--text:#e4ffed;--muted:#87ad9b;--accent:#42f58d;--warn:#ffd166;--danger:#ff7f7f}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg)}
+body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--text)}
+main{height:100dvh;min-height:100svh;display:flex;flex-direction:column;padding:calc(9px + env(safe-area-inset-top)) 12px calc(10px + env(safe-area-inset-bottom));gap:9px;max-width:650px;margin:auto}
+header{display:flex;align-items:center;justify-content:space-between}
+.brand{font:900 13px monospace;letter-spacing:2px;color:var(--accent)}
+.timer{font:800 16px monospace;color:var(--muted)}
+.mission{text-align:center;color:var(--muted);font-size:11px;letter-spacing:1.3px;font-weight:800}
+.detector{flex:1;min-height:0;border:1px solid var(--line);border-radius:24px;background:radial-gradient(circle at 50% 35%,#12301f 0,#09130d 38%,#060a08 78%);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px 16px;position:relative;box-shadow:inset 0 0 45px #0008}
+.detector:before{content:"";position:absolute;inset:10px;border:1px solid #173226;border-radius:18px;pointer-events:none}
+.label{font:800 11px monospace;letter-spacing:2px;color:var(--muted);margin-bottom:8px}
+.reading{font:900 clamp(82px,25vw,150px)/.82 ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--accent);text-shadow:0 0 28px #42f58d66;letter-spacing:-5px}
+.unit{font:900 16px monospace;letter-spacing:4px;color:var(--muted);margin-top:8px}
+.signal{width:min(92%,430px);margin-top:24px}
+.signalbar{height:15px;border:1px solid #2a513e;border-radius:99px;background:#050b07;padding:2px;overflow:hidden}
+.signalbar i{display:block;width:5%;height:100%;border-radius:99px;background:var(--accent);box-shadow:0 0 18px #42f58d99;transition:width .2s}
+.signaltext{text-align:center;margin-top:9px;height:18px;font-weight:900;font-size:12px;letter-spacing:1.5px;color:var(--warn)}
+.clicks{height:48px;margin-top:14px;display:flex;align-items:center;justify-content:center;gap:4px;overflow:hidden;max-width:95%}
+.dot{width:4px;height:4px;border-radius:50%;background:var(--accent);opacity:.8;animation:pulse .15s ease-out}
+@keyframes pulse{from{transform:scale(.4);opacity:0}to{transform:scale(1);opacity:.85}}
+.info{display:grid;grid-template-columns:1fr 1fr;gap:7px;width:100%;max-width:430px;margin-top:12px}
+.info div{border:1px solid #1c3328;background:#07100b;border-radius:10px;text-align:center;padding:6px}
+.info small{display:block;color:var(--muted);font-size:8px}
+.info b{font:800 14px monospace}
+.controls{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:7px}
+button{appearance:none;border:1px solid #2b5c48;background:#10231a;color:var(--text);border-radius:13px;min-height:48px;font-size:12px;font-weight:900;letter-spacing:.5px}
+button.primary{background:#1a5037;border-color:var(--accent);box-shadow:0 0 15px #42f58d18}
+button:disabled{opacity:.38}
+#locate{display:none}
+#mapScreen{display:none;position:fixed;inset:0;background:#07100c;padding:calc(12px + env(safe-area-inset-top)) 12px calc(12px + env(safe-area-inset-bottom));z-index:20;flex-direction:column;gap:10px}
+.mapTitle{display:flex;justify-content:space-between;align-items:center;font-weight:900}.mapTitle span{color:var(--accent);font-family:monospace}
+.map{flex:1;min-height:0;border:1px solid var(--line);border-radius:18px;position:relative;background:#08120d;overflow:hidden;background-image:linear-gradient(#173326 1px,transparent 1px),linear-gradient(90deg,#173326 1px,transparent 1px);background-size:10% 10%}
+.source{position:absolute;width:28px;height:28px;border-radius:50%;background:var(--warn);box-shadow:0 0 35px #ffd166;transform:translate(-50%,-50%)}
+.youFinal{position:absolute;width:18px;height:18px;border-radius:50%;background:var(--accent);box-shadow:0 0 20px #42f58d;transform:translate(-50%,-50%)}
+.mapFoot{text-align:center;color:var(--muted);font-size:12px}.success{color:var(--accent);font-weight:900}
+@media(max-height:650px){main{gap:5px;padding-top:5px}.detector{padding:10px}.reading{font-size:70px}.signal{margin-top:12px}.clicks{height:32px;margin-top:7px}.info{margin-top:5px}.controls button{min-height:42px}}
 </style>
 </head>
-
-
 <body>
-
 <main>
+<header><div class="brand">RADIOLOCATOR</div><div id="timer" class="timer">05:00</div></header>
+<div class="mission">MISSÃO: LOCALIZAR A FONTE PERDIDA</div>
 
-  <!-- CABEÇALHO -->
-
-  <div class="head">
-    <div class="tag">FÍSICA MÉDICA // SIMULAÇÃO</div>
-    <div id="timer" class="tag">05:00</div>
+<section class="detector">
+  <div class="label">DETECTOR VIRTUAL</div>
+  <div id="cpm" class="reading">—</div>
+  <div class="unit">CPM</div>
+  <div class="signal"><div class="signalbar"><i id="bar"></i></div><div id="signalText" class="signaltext">AGUARDANDO INÍCIO</div></div>
+  <div id="clicks" class="clicks"></div>
+  <div class="info">
+    <div><small>BACKGROUND</small><b>40 CPM</b></div>
+    <div><small>MÁXIMA</small><b id="max">—</b></div>
   </div>
+</section>
 
-  <div class="mission">
-    RADIOLOCATOR
-  </div>
-
-  <div class="sub">
-    Missão: localizar a <b>fonte radioativa perdida</b>.
-    Não existe radiação real nesta atividade.
-  </div>
-
-
-  <!-- DISPLAY -->
-
-  <section class="card reading">
-
-    <div class="unit">
-      CONTAGEM SIMULADA
-    </div>
-
-    <div id="cpm" class="num">
-      —
-    </div>
-
-    <div class="unit">
-      CPM
-    </div>
-
-    <div class="bar">
-      <i id="bar"></i>
-    </div>
-
-    <div id="status" class="status">
-      Pressione <span>INICIAR</span>
-    </div>
-
-  </section>
-
-
-  <!-- INDICADORES -->
-
-  <section class="card">
-
-    <div class="grid">
-
-      <div class="metric">
-        <small>Background</small>
-        <b id="bg">40 CPM</b>
-      </div>
-
-      <div class="metric">
-        <small>Distância</small>
-        <b id="dist">—</b>
-      </div>
-
-      <div class="metric">
-        <small>Máxima</small>
-        <b id="max">—</b>
-      </div>
-
-      <div class="metric">
-        <small>Tempo</small>
-        <b id="elapsed">0:00</b>
-      </div>
-
-    </div>
-
-  </section>
-
-
-  <!-- MAPA -->
-
-  <section class="card">
-
-    <div id="map">
-
-      <div class="gridlines"></div>
-
-      <div
-        id="you"
-        class="dot you"
-        style="left:20%;top:75%">
-      </div>
-
-      <div
-        id="source"
-        class="dot source"
-        style="left:72%;top:30%">
-      </div>
-
-    </div>
-
-  </section>
-
-
-  <!-- CONTROLES -->
-
-  <div class="controls">
-
-    <button
-      id="start"
-      class="primary">
-      ▶ INICIAR
-    </button>
-
-    <button
-      id="measure"
-      disabled>
-      ☢ MEDIR
-    </button>
-
-    <button
-      id="reset">
-      ↻ REINICIAR
-    </button>
-
-  </div>
-
-
-  <!-- INFORMAÇÕES -->
-
-  <section class="card">
-
-    <details>
-
-      <summary>
-        Como funciona?
-      </summary>
-
-      <p class="notice">
-
-        A aplicação cria uma fonte
-        <b>virtual</b>.
-
-        A contagem diminui aproximadamente
-        com o quadrado da distância,
-        com flutuação aleatória para imitar
-        a estatística de contagem de um detector.
-
-      </p>
-
-      <p class="notice">
-
-        Os números são deliberadamente simulados
-        e não representam uma medida de dose.
-
-      </p>
-
-    </details>
-
-  </section>
-
-
-  <div id="result"></div>
-
+<div class="controls">
+  <button id="start" class="primary">▶ INICIAR</button>
+  <button id="measure" disabled>☢ MEDIR</button>
+  <button id="locate" class="primary">📍 LOCALIZEI</button>
+  <button id="reset">↻ REINICIAR</button>
+</div>
 </main>
 
+<section id="mapScreen">
+  <div class="mapTitle"><span>RESULTADO DA MISSÃO</span><span id="resultTime">—</span></div>
+  <div id="map" class="map">
+    <div id="source" class="source"></div>
+    <div id="youFinal" class="youFinal"></div>
+  </div>
+  <div id="mapFoot" class="mapFoot"></div>
+  <button id="closeMap">VOLTAR AO DETECTOR</button>
+</section>
 
 <script>
-
-/* ELEMENTOS */
-
-const map =
-  document.querySelector('#map');
-
-const you =
-  document.querySelector('#you');
-
-const source =
-  document.querySelector('#source');
-
-const cpm =
-  document.querySelector('#cpm');
-
-const bar =
-  document.querySelector('#bar');
-
-const status =
-  document.querySelector('#status');
-
-const distEl =
-  document.querySelector('#dist');
-
-const maxEl =
-  document.querySelector('#max');
-
-const elapsedEl =
-  document.querySelector('#elapsed');
-
-const timer =
-  document.querySelector('#timer');
-
-const measureButton =
-  document.querySelector('#measure');
-
-const startButton =
-  document.querySelector('#start');
-
-const resetButton =
-  document.querySelector('#reset');
-
-
-/* CONFIGURAÇÃO DA SIMULAÇÃO */
-
-let running = false;
-
-let startTime = 0;
-
-let timerInt = null;
-
-let max = 0;
-
-
-/*
-  Background do detector.
-
-  É uma contagem fictícia,
-  não uma medida de radiação.
-*/
-
-const BG = 40;
-
-
-/*
-  Intensidade da fonte virtual.
-
-  Quanto maior o valor,
-  mais fácil será localizar a fonte.
-*/
-
-const K = 11500;
-
-
-/*
-  Posição da fonte virtual.
-
-  x e y variam de 0 a 1.
-
-  IMPORTANTE:
-  esta posição não aparece
-  para o aluno enquanto ele procura.
-*/
-
-let sourcePos = {
-  x:0.72,
-  y:0.30
-};
-
-
-/*
-  Posição inicial do aluno.
-*/
-
-let youPos = {
-  x:0.20,
-  y:0.75
-};
-
-
-/* DISTRIBUIÇÃO DE POISSON */
-
-function poisson(mean){
-
-  const L = Math.exp(-mean);
-
-  let k = 0;
-
-  let p = 1;
-
-  do{
-
-    k++;
-
-    p *= Math.random();
-
-  }while(p > L);
-
-  return k - 1;
+const BG=40,K=11500;
+let sourcePos={x:.72,y:.30},youPos={x:.20,y:.75};
+let running=false,startTime=0,timerInt=null,max=0,lastCPM=0;
+const $=id=>document.getElementById(id);
+function poisson(mean){let L=Math.exp(-mean),k=0,p=1;do{k++;p*=Math.random()}while(p>L);return k-1}
+function dist(){return Math.max(.45,Math.hypot(youPos.x-sourcePos.x,youPos.y-sourcePos.y)*10)}
+function read(){let d=dist(),mean=BG+K/(d*d);return{d,c:poisson(mean)}}
+function setSignal(c){
+  $('bar').style.width=Math.min(100,5+100*c/500)+'%';
+  let t=c>280?'MUITO PRÓXIMO':c>170?'APROXIMANDO-SE':c>90?'SINAL DETECTÁVEL':'SINAL FRACO';
+  $('signalText').textContent=t;
 }
-
-
-/* DISTÂNCIA ATÉ A FONTE */
-
-function distance(){
-
-  /*
-    Converte a distância relativa
-    do mapa para aproximadamente metros.
-  */
-
-  return Math.max(
-    0.45,
-    Math.hypot(
-      youPos.x-sourcePos.x,
-      youPos.y-sourcePos.y
-    ) * 10
-  );
+function soundClicks(c){
+  const n=Math.min(22,Math.max(1,Math.round(c/35)));
+  const box=$('clicks');box.innerHTML='';
+  for(let i=0;i<n;i++){let d=document.createElement('span');d.className='dot';box.appendChild(d)}
+  if(!window.AudioContext&&!window.webkitAudioContext)return;
+  try{
+    const AC=window.AudioContext||window.webkitAudioContext;
+    if(!window._ac)window._ac=new AC();
+    const ac=window._ac,o=ac.createOscillator(),g=ac.createGain();
+    o.type='square';o.frequency.value=1050;g.gain.value=.025;o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+.025);
+  }catch(e){}
 }
-
-
-/* GERA UMA LEITURA */
-
-function reading(){
-
-  const d = distance();
-
-  /*
-    Lei do inverso do quadrado:
-
-        C = BG + K/r²
-  */
-
-  const mean =
-    BG + K/(d*d);
-
-  /*
-    Introduz flutuação estatística.
-  */
-
-  const c =
-    poisson(mean);
-
-  return {
-    d:d,
-    c:c
-  };
-}
-
-
-/* ATUALIZA POSIÇÃO DO ALUNO */
-
-function updatePos(x,y){
-
-  const r =
-    map.getBoundingClientRect();
-
-  youPos.x =
-    Math.max(
-      0,
-      Math.min(
-        1,
-        (x-r.left)/r.width
-      )
-    );
-
-  youPos.y =
-    Math.max(
-      0,
-      Math.min(
-        1,
-        (y-r.top)/r.height
-      )
-    );
-
-  you.style.left =
-    (youPos.x*100)+'%';
-
-  you.style.top =
-    (youPos.y*100)+'%';
-}
-
-
-/* INTERAÇÃO COM O MAPA */
-
-map.addEventListener(
-  'pointerdown',
-  function(e){
-
-    if(running){
-
-      updatePos(
-        e.clientX,
-        e.clientY
-      );
-
-    }
-
-  }
-);
-
-
-map.addEventListener(
-  'pointermove',
-  function(e){
-
-    if(
-      running &&
-      e.buttons
-    ){
-
-      updatePos(
-        e.clientX,
-        e.clientY
-      );
-
-    }
-
-  }
-);
-
-
-/* REALIZA UMA MEDIÇÃO */
-
 function measure(){
-
-  if(!running){
-    return;
-  }
-
-  const r =
-    reading();
-
-  cpm.textContent =
-    r.c;
-
-  distEl.textContent =
-    r.d.toFixed(1)+' m';
-
-  max =
-    Math.max(
-      max,
-      r.c
-    );
-
-  maxEl.textContent =
-    max+' CPM';
-
-
-  /*
-    Indicador visual.
-  */
-
-  bar.style.width =
-    Math.min(
-      100,
-      10 + 100*(r.c/500)
-    )+'%';
-
-
-  /*
-    Interpretação qualitativa
-    da leitura.
-  */
-
-  const ratio =
-    r.c/250;
-
-
-  if(ratio > 1.1){
-
-    status.innerHTML =
-      '<span>MUITO PRÓXIMO</span>';
-
-  }
-
-  else if(ratio > .65){
-
-    status.innerHTML =
-      '<span>APROXIMANDO-SE</span>';
-
-  }
-
-  else if(ratio > .35){
-
-    status.textContent =
-      'SINAL DETECTÁVEL';
-
-  }
-
-  else{
-
-    status.textContent =
-      'SINAL FRACO';
-
-  }
-
-
-  /*
-    Fonte localizada.
-  */
-
-  if(r.d < .8){
-
-    source.style.display =
-      'block';
-
-    status.innerHTML =
-      '<span>✓ FONTE LOCALIZADA!</span>';
-
-    running = false;
-
-    clearInterval(timerInt);
-
-    measureButton.disabled =
-      true;
-
-    document.querySelector(
-      '#result'
-    ).innerHTML =
-      '<p class="success">'+
-      'MISSÃO CONCLUÍDA.'+
-      '</p>';
-
-  }
-
+ if(!running)return;
+ const r=read();lastCPM=r.c;cpm.textContent=r.c;max=Math.max(max,r.c);$('max').textContent=max+' CPM';setSignal(r.c);soundClicks(r.c);
+ if(r.d<.8){running=false;clearInterval(timerInt);$('measure').disabled=true;$('locate').style.display='block';$('signalText').textContent='✓ FONTE DETECTADA';}
 }
-
-
-/* CRONÔMETRO */
-
 function tick(){
-
-  const s =
-    Math.floor(
-      (Date.now()-startTime)/1000
-    );
-
-  const left =
-    Math.max(
-      0,
-      300-s
-    );
-
-
-  timer.textContent =
-    String(
-      Math.floor(left/60)
-    ).padStart(2,'0')
-    +
-    ':'
-    +
-    String(
-      left%60
-    ).padStart(2,'0');
-
-
-  elapsedEl.textContent =
-    Math.floor(s/60)
-    +
-    ':'
-    +
-    String(
-      s%60
-    ).padStart(2,'0');
-
-
-  /*
-    Tempo esgotado.
-  */
-
-  if(left === 0){
-
-    running = false;
-
-    clearInterval(timerInt);
-
-    measureButton.disabled =
-      true;
-
-    status.innerHTML =
-      '<span>TEMPO ESGOTADO</span>';
-
-  }
-
+ const s=Math.floor((Date.now()-startTime)/1000),left=Math.max(0,300-s);
+ $('timer').textContent=String(Math.floor(left/60)).padStart(2,'0')+':'+String(left%60).padStart(2,'0');
+ if(left===0){running=false;clearInterval(timerInt);$('measure').disabled=true;$('signalText').textContent='TEMPO ESGOTADO';$('locate').style.display='block'}
 }
-
-
-/* INICIAR */
-
-startButton.onclick =
-function(){
-
-  if(running){
-    return;
-  }
-
-  running = true;
-
-  startTime =
-    Date.now();
-
-  max = 0;
-
-  maxEl.textContent =
-    '—';
-
-  source.style.display =
-    'none';
-
-  measureButton.disabled =
-    false;
-
-  status.textContent =
-    'DETECTOR ATIVO';
-
-
-  /*
-    Primeira leitura.
-  */
-
-  measure();
-
-
-  clearInterval(timerInt);
-
-  timerInt =
-    setInterval(
-      tick,
-      250
-    );
-
+$('start').onclick=()=>{if(running)return;running=true;startTime=Date.now();max=0;$('max').textContent='—';$('measure').disabled=false;$('locate').style.display='none';$('signalText').textContent='DETECTOR ATIVO';measure();clearInterval(timerInt);timerInt=setInterval(tick,250)};
+$('measure').onclick=measure;
+$('locate').onclick=()=>{
+ const elapsed=Math.floor((Date.now()-startTime)/1000);
+ $('source').style.left=(sourcePos.x*100)+'%';$('source').style.top=(sourcePos.y*100)+'%';
+ $('youFinal').style.left=(youPos.x*100)+'%';$('youFinal').style.top=(youPos.y*100)+'%';
+ $('resultTime').textContent=Math.floor(elapsed/60)+':'+String(elapsed%60).padStart(2,'0');
+ const d=dist();
+ $('mapFoot').innerHTML=d<1.5?'<span class="success">🎯 EXCELENTE! Você localizou a fonte.</span>':'A fonte estava a '+d.toFixed(1)+' m da sua posição final.';
+ $('mapScreen').style.display='flex';
 };
-
-
-/* BOTÃO MEDIR */
-
-measureButton.onclick =
-function(){
-
-  measure();
-
-};
-
-
-/* REINICIAR */
-
-resetButton.onclick =
-function(){
-
-  running = false;
-
-  clearInterval(timerInt);
-
-
-  /*
-    Volta para a posição inicial.
-  */
-
-  youPos = {
-    x:.20,
-    y:.75
-  };
-
-
-  you.style.left =
-    '20%';
-
-  you.style.top =
-    '75%';
-
-
-  source.style.display =
-    'none';
-
-
-  cpm.textContent =
-    '—';
-
-  distEl.textContent =
-    '—';
-
-  maxEl.textContent =
-    '—';
-
-  elapsedEl.textContent =
-    '0:00';
-
-  timer.textContent =
-    '05:00';
-
-  bar.style.width =
-    '10%';
-
-  status.innerHTML =
-    'Pressione <span>INICIAR</span>';
-
-  measureButton.disabled =
-    true;
-
-};
-
+$('closeMap').onclick=()=>{$('mapScreen').style.display='none'};
+$('reset').onclick=()=>{running=false;clearInterval(timerInt);sourcePos={x:.72,y:.30};youPos={x:.20,y:.75};$('cpm').textContent='—';$('max').textContent='—';$('timer').textContent='05:00';$('bar').style.width='5%';$('signalText').textContent='AGUARDANDO INÍCIO';$('clicks').innerHTML='';$('measure').disabled=true;$('locate').style.display='none';$('mapScreen').style.display='none'};
 </script>
-
 </body>
-</html>
+</html>'''
+out=Path("/mnt/data/radiolocator-v2.html");out.write_text(html,encoding="utf-8")
+zip_path=Path("/mnt/data/radiolocator-v2-github-pages.zip")
+with zipfile.ZipFile(zip_path,"w",zipfile.ZIP_DEFLATED) as z:z.write(out,"index.html")
+print(zip_path)
