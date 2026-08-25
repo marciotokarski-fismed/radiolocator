@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>RADIOLOCATOR — Fonte Perdida</title>
+<style>
+:root{--bg:#08100d;--panel:#0d1915;--line:#234238;--text:#d8ffe9;--muted:#82aa99;--accent:#42f58d;--warn:#ffd166}
+*{box-sizing:border-box} body{margin:0;background:radial-gradient(circle at top,#10251d,#050907 65%);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+main{max-width:760px;margin:auto;padding:18px 14px 40px}.head{display:flex;justify-content:space-between;gap:12px;align-items:center}.tag{font:700 12px monospace;color:var(--accent);letter-spacing:2px}.mission{font-size:clamp(25px,7vw,42px);font-weight:800;line-height:1.05;margin:8px 0}.sub{color:var(--muted);margin-bottom:18px}
+.card{background:linear-gradient(180deg,#102019,#0a1410);border:1px solid var(--line);border-radius:18px;padding:16px;margin:12px 0;box-shadow:0 10px 35px #0007}
+.reading{text-align:center}.reading .num{font:800 clamp(58px,17vw,105px)/.9 ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--accent);text-shadow:0 0 24px #42f58d55}.unit{font:700 15px monospace;letter-spacing:2px;color:var(--muted)}
+.bar{height:12px;background:#07100c;border-radius:99px;overflow:hidden;margin:16px 0}.bar i{display:block;height:100%;width:10%;background:var(--accent);box-shadow:0 0 15px #42f58d88;transition:.25s}
+.status{text-align:center;font-weight:800;letter-spacing:1px;min-height:24px}.status span{color:var(--warn)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.metric{background:#08110d;border:1px solid #1b332a;border-radius:12px;padding:11px}.metric b{display:block;font:700 18px monospace}.metric small{color:var(--muted)}
+button{border:1px solid #2b5c48;background:#12271e;color:var(--text);border-radius:12px;padding:13px 14px;font-weight:800;cursor:pointer}button.primary{background:#1b5138;border-color:#42f58d;color:#dffff0}button:disabled{opacity:.45}
+.controls{display:flex;gap:10px;flex-wrap:wrap}.controls button{flex:1;min-width:130px}
+#map{width:100%;height:340px;background:#07100c;border:1px solid #234238;border-radius:14px;position:relative;overflow:hidden;touch-action:none}
+.gridlines{position:absolute;inset:0;background-image:linear-gradient(#1c3a2f 1px,transparent 1px),linear-gradient(90deg,#1c3a2f 1px,transparent 1px);background-size:10% 10%;opacity:.45}
+.dot{position:absolute;transform:translate(-50%,-50%);width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 0 18px #fff}.dot.you{background:#42f58d;box-shadow:0 0 18px #42f58d}.source{display:none;background:#ffd166;box-shadow:0 0 25px #ffd166}
+.legend{display:flex;gap:16px;color:var(--muted);font-size:13px;margin-top:8px}.legend b{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;background:#42f58d}.legend .s b{background:#ffd166}
+.notice{font-size:13px;color:var(--muted);line-height:1.45}.success{color:var(--accent);font-weight:800}.danger{color:#ff8b8b}
+details summary{cursor:pointer;font-weight:800}.small{font-size:12px;color:var(--muted)}
+</style>
+</head>
+<body>
+<main>
+  <div class="head"><div class="tag">FÍSICA MÉDICA // SIMULAÇÃO</div><div id="timer" class="tag">05:00</div></div>
+  <div class="mission">RADIOLOCATOR</div>
+  <div class="sub">Missão: localizar a <b>fonte radioativa perdida</b>. Não existe radiação real nesta atividade.</div>
+
+  <section class="card reading">
+    <div class="unit">CONTAGEM SIMULADA</div>
+    <div id="cpm" class="num">—</div>
+    <div class="unit">CPM</div>
+    <div class="bar"><i id="bar"></i></div>
+    <div id="status" class="status">Pressione <span>INICIAR</span></div>
+  </section>
+
+  <section class="card">
+    <div class="grid">
+      <div class="metric"><small>Background</small><b id="bg">40 CPM</b></div>
+      <div class="metric"><small>Distância estimada</small><b id="dist">—</b></div>
+      <div class="metric"><small>Máxima leitura</small><b id="max">—</b></div>
+      <div class="metric"><small>Tempo</small><b id="elapsed">0:00</b></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div id="map"><div class="gridlines"></div><div id="you" class="dot you" style="left:20%;top:75%"></div><div id="source" class="dot source" style="left:72%;top:30%"></div></div>
+    <div class="legend"><span><b></b> sua posição</span><span class="s"><b></b> fonte (oculta)</span></div>
+    <p class="small">Toque ou arraste no mapa para indicar onde você está. A leitura é recalculada a cada medição.</p>
+  </section>
+
+  <div class="controls">
+    <button id="start" class="primary">▶ INICIAR</button>
+    <button id="measure" disabled>☢ MEDIR</button>
+    <button id="reset">↻ REINICIAR</button>
+  </div>
+
+  <section class="card">
+    <details>
+      <summary>Como funciona?</summary>
+      <p class="notice">A aplicação cria uma fonte <b>virtual</b>. A contagem diminui aproximadamente com o quadrado da distância, com flutuação aleatória para imitar a estatística de contagem de um detector. Os números são deliberadamente simulados e não representam uma medida de dose.</p>
+      <p class="notice">Para localizar a fonte, faça medições em diferentes pontos e procure a região de maior contagem.</p>
+    </details>
+  </section>
+  <div id="result" class="notice"></div>
+</main>
+
+<script>
+const map=document.querySelector('#map'), you=document.querySelector('#you'), source=document.querySelector('#source');
+const cpm=document.querySelector('#cpm'), bar=document.querySelector('#bar'), status=document.querySelector('#status');
+const distEl=document.querySelector('#dist'), maxEl=document.querySelector('#max'), elapsedEl=document.querySelector('#elapsed');
+let running=false, startTime=0, timerInt=null, max=0;
+const BG=40, K=11500;
+let sourcePos={x:.72,y:.30}, youPos={x:.20,y:.75};
+
+function poisson(mean){
+  // Knuth sampler: adequate for the modest means used here
+  const L=Math.exp(-mean); let k=0,p=1;
+  do{k++;p*=Math.random()}while(p>L);
+  return k-1;
+}
+function distance(){
+  return Math.max(.45, Math.hypot(youPos.x-sourcePos.x,youPos.y-sourcePos.y)*10);
+}
+function reading(){
+  const d=distance(), mean=BG+K/(d*d);
+  return {d, c:poisson(mean)};
+}
+function updatePos(x,y){
+  const r=map.getBoundingClientRect();
+  youPos.x=Math.max(0,Math.min(1,(x-r.left)/r.width));
+  youPos.y=Math.max(0,Math.min(1,(y-r.top)/r.height));
+  you.style.left=(youPos.x*100)+'%'; you.style.top=(youPos.y*100)+'%';
+}
+map.addEventListener('pointerdown',e=>{if(running)updatePos(e.clientX,e.clientY)});
+map.addEventListener('pointermove',e=>{if(running && e.buttons)updatePos(e.clientX,e.clientY)});
+
+function measure(){
+  if(!running)return;
+  const r=reading(); cpm.textContent=r.c; distEl.textContent=r.d.toFixed(1)+' m';
+  max=Math.max(max,r.c); maxEl.textContent=max+' CPM';
+  bar.style.width=Math.min(100,10+100*(r.c/500))+'%';
+  const ratio=r.c/250;
+  status.innerHTML=ratio>1.1?'<span>MUITO PRÓXIMO</span>':ratio>.65?'<span>APROXIMANDO-SE</span>':ratio>.35?'SINAL DETECTÁVEL':'SINAL FRACO';
+  if(r.d<.8){source.style.display='block'; status.innerHTML='<span>✓ FONTE LOCALIZADA!</span>'; running=false; clearInterval(timerInt); document.querySelector('#measure').disabled=true; document.querySelector('#result').innerHTML='<p class="success">MISSÃO CONCLUÍDA. Você localizou a região da fonte virtual.</p>'}
+}
+function tick(){
+ const s=Math.floor((Date.now()-startTime)/1000), left=Math.max(0,300-s);
+ timer.textContent=`${String(Math.floor(left/60)).padStart(2,'0')}:${String(left%60).padStart(2,'0')}`;
+ elapsedEl.textContent=`${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+ if(left===0){running=false;clearInterval(timerInt);document.querySelector('#measure').disabled=true;status.innerHTML='<span>TEMPO ESGOTADO</span>'}
+}
+document.querySelector('#start').onclick=()=>{
+ if(running)return; running=true; startTime=Date.now(); max=0; maxEl.textContent='—'; source.style.display='none';
+ document.querySelector('#measure').disabled=false; status.textContent='DETECTOR ATIVO'; measure(); clearInterval(timerInt); timerInt=setInterval(tick,250);
+};
+document.querySelector('#measure').onclick=measure;
+document.querySelector('#reset').onclick=()=>{
+ running=false;clearInterval(timerInt);youPos={x:.20,y:.75};you.style.left='20%';you.style.top='75%';source.style.display='none';
+ cpm.textContent='—';distEl.textContent='—';maxEl.textContent='—';elapsedEl.textContent='0:00';timer.textContent='05:00';bar.style.width='10%';status.innerHTML='Pressione <span>INICIAR</span>';document.querySelector('#measure').disabled=true;document.querySelector('#result').innerHTML='';
+};
+</script>
+</body>
+</html>
