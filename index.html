@@ -3,11 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
-<meta name="theme-color" content="#050907">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<meta http-equiv="Pragma" content="no-cache">
-<meta http-equiv="Expires" content="0">
-<title>RADIOLOCATOR 3.1 - MAGNETÔMETRO</title>
+<meta name="theme-color" content="#050907">
+<title>RADIOLOCATOR 3.3 - PERMISSÃO DE SENSOR</title>
 <style>
 :root{--bg:#050907;--panel:#0b1510;--line:#244436;--text:#e4ffed;--muted:#87ad9b;--accent:#42f58d;--warn:#ffd166;--danger:#ff7f7f}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -44,18 +42,18 @@ button:disabled{opacity:.38;cursor:not-allowed}
 </head>
 <body>
 <main>
-<header><div class="brand">RADIOLOCATOR 3.1</div><div id="timer" class="timer">05:00</div></header>
-<div class="mission" id="statusText">VARREDURA MAGNÉTICA REAL ATIVA</div>
+<header><div class="brand">RADIOLOCATOR 3.3</div><div id="timer" class="timer">05:00</div></header>
+<div class="mission" id="statusText">TOQUE EM INICIAR PARA ATIVAR O SENSOR</div>
 
 <section class="detector">
   <div class="label">DETECTOR VIRTUAL (MAG → CPM)</div>
   <div id="cpm" class="reading">—</div>
   <div class="unit">CPM</div>
-  <div class="signal"><div class="signalbar"><i id="bar"></i></div><div id="signalText" class="signaltext">TOQUE EM INICIAR</div></div>
+  <div class="signal"><div class="signalbar"><i id="bar"></i></div><div id="signalText" class="signaltext">PERMISSÃO PENDENTE</div></div>
   <div id="clicks" class="clicks"></div>
   <div class="info">
-    <div><small>BACKGROUND</small><b id="bgVal">45 µT</b></div>
-    <div><small>CAMPO MAGNÉTICO</small><b id="uTVal">OFF</b></div>
+    <div><small>BACKGROUND</small><b id="bgVal">40 µT</b></div>
+    <div><small>CAMPO DETECTADO</small><b id="uTVal">OFF</b></div>
     <div><small>MÁXIMA</small><b id="max">—</b></div>
   </div>
 </section>
@@ -68,9 +66,9 @@ button:disabled{opacity:.38;cursor:not-allowed}
 </main>
 
 <script>
-let bgUT = 45; 
-let currentUT = bgUT;
-let sensorActive = false;
+let bgUT = 40; 
+let currentUT = 40;
+let lastAlpha = null;
 let running = false, startTime = 0, timerInt = null, maxCPM = 0, autoMeasureInt = null;
 
 const $ = id => document.getElementById(id);
@@ -87,76 +85,49 @@ function poisson(mean) {
   return k - 1;
 }
 
-// Inicializador com tratamento avançado de permissões
-async function requestAndInitSensors() {
-  // 1. Tenta acionar Magnetometer API nativa
-  if ('Magnetometer' in window) {
-    try {
-      const permissions = await Promise.all([
-        navigator.permissions.query({ name: 'magnetometer' }).catch(() => null)
-      ]);
-      
-      const sensor = new Magnetometer({ frequency: 10 });
-      sensor.addEventListener('reading', () => {
-        currentUT = Math.hypot(sensor.x, sensor.y, sensor.z);
-        sensorActive = true;
-        updateSensorUI();
-      });
-      sensor.addEventListener('error', (e) => {
-        console.warn('Magnetômetro erro:', e.error);
-        initFallbackSensors();
-      });
-      sensor.start();
-      return;
-    } catch (e) {
-      console.log('Magnetometer API falhou, tentando fallback:', e);
-      initFallbackSensors();
-    }
-  } else {
-    initFallbackSensors();
-  }
-}
-
-function initFallbackSensors() {
-  // 2. Fallback via DeviceOrientation / DeviceMotion (iOS / navegadores antigos)
+// Ativação e Pedido de Permissão
+async function enableSensors() {
+  // Pedido explícito para iOS/Safari
   if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-    DeviceOrientationEvent.requestPermission().then(response => {
-      if (response === 'granted') {
-        bindOrientationEvents();
-      } else {
-        alert('Permissão para sensores negada no Safari.');
+    try {
+      const permission = await DeviceOrientationEvent.requestPermission();
+      if (permission !== 'granted') {
+        alert('Permissão para sensores negada pelo usuário.');
+        return false;
       }
-    }).catch(console.error);
-  } else {
-    bindOrientationEvents();
-  }
-}
-
-function bindOrientationEvents() {
-  window.addEventListener('deviceorientation', (e) => {
-    // Alguns dispositivos retornam o campo ou variação através da orientação alpha/beta/gamma
-    if (e.webkitCompassHeading !== undefined) {
-      // iPhone/Safari: Usamos a taxa de bússola para detectar perturbação magnética
-      sensorActive = true;
+    } catch (e) {
+      console.error(e);
     }
-  });
+  }
 
+  // Escuta perturbações no vetor magnético via devicemotion / orientation
   window.addEventListener('devicemotion', (e) => {
     if (e.magneticField && e.magneticField.x !== null) {
       currentUT = Math.hypot(e.magneticField.x, e.magneticField.y, e.magneticField.z);
-      sensorActive = true;
-      updateSensorUI();
+      $('uTVal').textContent = currentUT.toFixed(1) + ' µT';
     }
-  });
-}
+  }, true);
 
-function updateSensorUI() {
-  $('uTVal').textContent = currentUT.toFixed(1) + ' µT';
+  window.addEventListener('deviceorientation', (e) => {
+    if (e.alpha !== null) {
+      if (lastAlpha === null) lastAlpha = e.alpha;
+      // Calcula o desvio magnético provocado pelo ímã na bússola
+      let diff = Math.abs(e.alpha - lastAlpha);
+      if (diff > 180) diff = 360 - diff;
+      
+      // Converte o desvio da bússola em leitura virtual de microteslas (µT)
+      currentUT = bgUT + (diff * 4.5);
+      $('uTVal').textContent = currentUT.toFixed(1) + ' µT';
+      lastAlpha = e.alpha;
+    }
+  }, true);
+
+  return true;
 }
 
 function readCPM() {
-  const netUT = Math.max(0, currentUT - bgUT);
-  const meanCPM = 40 + (netUT * 25); // Aumentada a sensibilidade para 25 CPM por µT
+  const delta = Math.max(0, currentUT - bgUT);
+  const meanCPM = 40 + (delta * 15); 
   return poisson(meanCPM);
 }
 
@@ -218,8 +189,8 @@ $('calibBtn').onclick = () => {
   alert('Detector calibrado! Fundo ambiente ajustado para ' + bgUT.toFixed(1) + ' µT.');
 };
 
-$('start').onclick = () => {
-  requestAndInitSensors();
+$('start').onclick = async () => {
+  await enableSensors();
 
   if (running) return;
   running = true;
@@ -227,14 +198,14 @@ $('start').onclick = () => {
   maxCPM = 0;
   $('max').textContent = '—';
   $('measure').disabled = false;
-  $('signalText').textContent = 'DETECTOR ATIVO';
+  $('statusText').textContent = 'DETECTOR ATIVO';
   
   measure();
   clearInterval(timerInt);
   clearInterval(autoMeasureInt);
   
   timerInt = setInterval(tick, 250);
-  autoMeasureInt = setInterval(measure, 600);
+  autoMeasureInt = setInterval(measure, 500);
 };
 
 $('measure').onclick = measure;
