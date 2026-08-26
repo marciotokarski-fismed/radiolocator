@@ -1,512 +1,3 @@
-from pathlib import Path
-
-import zipfile
-
-
-
-html = r'''<!doctype html>
-
-<html lang="pt-BR">
-
-<head>
-
-<meta charset="utf-8">
-
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
-
-<meta name="theme-color" content="#050907">
-
-<title>RADIOLOCATOR 2.0</title>
-
-<style>
-
-:root{--bg:#050907;--panel:#0b1510;--line:#244436;--text:#e4ffed;--muted:#87ad9b;--accent:#42f58d;--warn:#ffd166;--danger:#ff7f7f}
-
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg)}
-
-body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--text)}
-
-main{height:100dvh;min-height:100svh;display:flex;flex-direction:column;padding:calc(9px + env(safe-area-inset-top)) 12px calc(10px + env(safe-area-inset-bottom));gap:9px;max-width:650px;margin:auto}
-
-header{display:flex;align-items:center;justify-content:space-between}
-
-.brand{font:900 13px monospace;letter-spacing:2px;color:var(--accent)}
-
-.timer{font:800 16px monospace;color:var(--muted)}
-
-.mission{text-align:center;color:var(--muted);font-size:11px;letter-spacing:1.3px;font-weight:800}
-
-.detector{flex:1;min-height:0;border:1px solid var(--line);border-radius:24px;background:radial-gradient(circle at 50% 35%,#12301f 0,#09130d 38%,#060a08 78%);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px 16px;position:relative;box-shadow:inset 0 0 45px #0008}
-
-.detector:before{content:"";position:absolute;inset:10px;border:1px solid #173226;border-radius:18px;pointer-events:none}
-
-.label{font:800 11px monospace;letter-spacing:2px;color:var(--muted);margin-bottom:8px}
-
-.reading{font:900 clamp(82px,25vw,150px)/.82 ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--accent);text-shadow:0 0 28px #42f58d66;letter-spacing:-5px}
-
-.unit{font:900 16px monospace;letter-spacing:4px;color:var(--muted);margin-top:8px}
-
-.signal{width:min(92%,430px);margin-top:24px}
-
-.signalbar{height:15px;border:1px solid #2a513e;border-radius:99px;background:#050b07;padding:2px;overflow:hidden}
-
-.signalbar i{display:block;width:5%;height:100%;border-radius:99px;background:var(--accent);box-shadow:0 0 18px #42f58d99;transition:width .2s}
-
-.signaltext{text-align:center;margin-top:9px;height:18px;font-weight:900;font-size:12px;letter-spacing:1.5px;color:var(--warn)}
-
-.clicks{height:48px;margin-top:14px;display:flex;align-items:center;justify-content:center;gap:4px;overflow:hidden;max-width:95%}
-
-.dot{width:4px;height:4px;border-radius:50%;background:var(--accent);opacity:.8;animation:pulse .15s ease-out}
-
-@keyframes pulse{from{transform:scale(.4);opacity:0}to{transform:scale(1);opacity:.85}}
-
-.info{display:grid;grid-template-columns:1fr 1fr;gap:7px;width:100%;max-width:430px;margin-top:12px}
-
-.info div{border:1px solid #1c3328;background:#07100b;border-radius:10px;text-align:center;padding:6px}
-
-.info small{display:block;color:var(--muted);font-size:8px}
-
-.info b{font:800 14px monospace}
-
-.controls{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:7px}
-
-button{appearance:none;border:1px solid #2b5c48;background:#10231a;color:var(--text);border-radius:13px;min-height:48px;font-size:12px;font-weight:900;letter-spacing:.5px}
-
-button.primary{background:#1a5037;border-color:var(--accent);box-shadow:0 0 15px #42f58d18}
-
-button:disabled{opacity:.38}
-
-#locate{display:none}
-
-#mapScreen{display:none;position:fixed;inset:0;background:#07100c;padding:calc(12px + env(safe-area-inset-top)) 12px calc(12px + env(safe-area-inset-bottom));z-index:20;flex-direction:column;gap:10px}
-
-.mapTitle{display:flex;justify-content:space-between;align-items:center;font-weight:900}.mapTitle span{color:var(--accent);font-family:monospace}
-
-.map{flex:1;min-height:0;border:1px solid var(--line);border-radius:18px;position:relative;background:#08120d;overflow:hidden;background-image:linear-gradient(#173326 1px,transparent 1px),linear-gradient(90deg,#173326 1px,transparent 1px);background-size:10% 10%}
-
-.source{position:absolute;width:28px;height:28px;border-radius:50%;background:var(--warn);box-shadow:0 0 35px #ffd166;transform:translate(-50%,-50%)}
-
-.youFinal{position:absolute;width:18px;height:18px;border-radius:50%;background:var(--accent);box-shadow:0 0 20px #42f58d;transform:translate(-50%,-50%)}
-
-.mapFoot{text-align:center;color:var(--muted);font-size:12px}.success{color:var(--accent);font-weight:900}
-
-@media(max-height:650px){main{gap:5px;padding-top:5px}.detector{padding:10px}.reading{font-size:70px}.signal{margin-top:12px}.clicks{height:32px;margin-top:7px}.info{margin-top:5px}.controls button{min-height:42px}}
-
-</style>
-
-</head>
-
-<body>
-
-<main>
-
-<header><div class="brand">RADIOLOCATOR</div><div id="timer" class="timer">05:00</div></header>
-
-<div class="mission">MISSÃO: LOCALIZAR A FONTE PERDIDA</div>
-
-
-
-<section class="detector">
-
-  <div class="label">DETECTOR VIRTUAL</div>
-
-  <div id="cpm" class="reading">—</div>
-
-  <div class="unit">CPM</div>
-
-  <div class="signal"><div class="signalbar"><i id="bar"></i></div><div id="signalText" class="signaltext">AGUARDANDO INÍCIO</div></div>
-
-  <div id="clicks" class="clicks"></div>
-
-  <div class="info">
-
-    <div><small>BACKGROUND</small><b>40 CPM</b></div>
-
-    <div><small>MÁXIMA</small><b id="max">—</b></div>
-
-  </div>
-
-</section>
-
-
-
-<div class="controls">
-
-  <button id="start" class="primary">▶ INICIAR</button>
-
-  <button id="measure" disabled>☢ MEDIR</button>
-
-  <button id="locate" class="primary">📍 LOCALIZEI</button>
-
-  <button id="reset">↻ REINICIAR</button>
-
-</div>
-
-</main>
-
-
-
-<section id="mapScreen">
-
-  <div class="mapTitle"><span>RESULTADO DA MISSÃO</span><span id="resultTime">—</span></div>
-
-  <div id="map" class="map">
-
-    <div id="source" class="source"></div>
-
-    <div id="youFinal" class="youFinal"></div>
-
-  </div>
-
-  <div id="mapFoot" class="mapFoot"></div>
-
-  <button id="closeMap">VOLTAR AO DETECTOR</button>
-
-</section>
-
-
-
-<script>
-
-const BG=40,K=11500;
-
-let sourcePos={x:.72,y:.30},youPos={x:.20,y:.75};
-
-let running=false,startTime=0,timerInt=null,max=0,lastCPM=0;
-
-const $=id=>document.getElementById(id);
-
-function poisson(mean){let L=Math.exp(-mean),k=0,p=1;do{k++;p*=Math.random()}while(p>L);return k-1}
-
-function dist(){return Math.max(.45,Math.hypot(youPos.x-sourcePos.x,youPos.y-sourcePos.y)*10)}
-
-function read(){let d=dist(),mean=BG+K/(d*d);return{d,c:poisson(mean)}}
-
-function setSignal(c){
-
-  $('bar').style.width=Math.min(100,5+100*c/500)+'%';
-
-  let t=c>280?'MUITO PRÓXIMO':c>170?'APROXIMANDO-SE':c>90?'SINAL DETECTÁVEL':'SINAL FRACO';
-
-  $('signalText').textContent=t;
-
-}
-
-function soundClicks(c){
-
-  const n=Math.min(22,Math.max(1,Math.round(c/35)));
-
-  const box=$('clicks');box.innerHTML='';
-
-  for(let i=0;i<n;i++){let d=document.createElement('span');d.className='dot';box.appendChild(d)}
-
-  if(!window.AudioContext&&!window.webkitAudioContext)return;
-
-  try{
-
-    const AC=window.AudioContext||window.webkitAudioContext;
-
-    if(!window._ac)window._ac=new AC();
-
-    const ac=window._ac,o=ac.createOscillator(),g=ac.createGain();
-
-    o.type='square';o.frequency.value=1050;g.gain.value=.025;o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+.025);
-
-  }catch(e){}
-
-}
-
-function measure(){
-
- if(!running)return;
-
- const r=read();lastCPM=r.c;cpm.textContent=r.c;max=Math.max(max,r.c);$('max').textContent=max+' CPM';setSignal(r.c);soundClicks(r.c);
-
- if(r.d<.8){running=false;clearInterval(timerInt);$('measure').disabled=true;$('locate').style.display='block';$('signalText').textContent='✓ FONTE DETECTADA';}
-
-}
-
-function tick(){
-
- const s=Math.floor((Date.now()-startTime)/1000),left=Math.max(0,300-s);
-
- $('timer').textContent=String(Math.floor(left/60)).padStart(2,'0')+':'+String(left%60).padStart(2,'0');
-
- if(left===0){running=false;clearInterval(timerInt);$('measure').disabled=true;$('signalText').textContent='TEMPO ESGOTADO';$('locate').style.display='block'}
-
-}
-
-$('start').onclick=()=>{if(running)return;running=true;startTime=Date.now();max=0;$('max').textContent='—';$('measure').disabled=false;$('locate').style.display='none';$('signalText').textContent='DETECTOR ATIVO';measure();clearInterval(timerInt);timerInt=setInterval(tick,250)};
-
-$('measure').onclick=measure;
-
-$('locate').onclick=()=>{
-
- const elapsed=Math.floor((Date.now()-startTime)/1000);
-
- $('source').style.left=(sourcePos.x*100)+'%';$('source').style.top=(sourcePos.y*100)+'%';
-
- $('youFinal').style.left=(youPos.x*100)+'%';$('youFinal').style.top=(youPos.y*100)+'%';
-
- $('resultTime').textContent=Math.floor(elapsed/60)+':'+String(elapsed%60).padStart(2,'0');
-
- const d=dist();
-
- $('mapFoot').innerHTML=d<1.5?'<span class="success">🎯 EXCELENTE! Você localizou a fonte.</span>':'A fonte estava a '+d.toFixed(1)+' m da sua posição final.';
-
- $('mapScreen').style.display='flex';
-
-};
-
-$('closeMap').onclick=()=>{$('mapScreen').style.display='none'};
-
-$('reset').onclick=()=>{running=false;clearInterval(timerInt);sourcePos={x:.72,y:.30};youPos={x:.20,y:.75};$('cpm').textContent='—';$('max').textContent='—';$('timer').textContent='05:00';$('bar').style.width='5%';$('signalText').textContent='AGUARDANDO INÍCIO';$('clicks').innerHTML='';$('measure').disabled=true;$('locate').style.display='none';$('mapScreen').style.display='none'};
-
-</script>
-
-</body>
-
-</html>'''
-
-out=Path("/mnt/data/radiolocator-v2.html");out.write_text(html,encoding="utf-8")
-
-zip_path=Path("/mnt/data/radiolocator-v2-github-pages.zip")
-
-with zipfile.ZipFile(zip_path,"w",zipfile.ZIP_DEFLATED) as z:z.write(out,"index.html")
-
-print(zip_path)
-
-Excelente ideia pedagógica! Simular o acidente com a fonte de Césio-137 ou uma fonte perdida usando física computacional e gamificação nos celulares dos alunos é uma estratégia extremamente engajadora para o Ensino Médio.
-
-Ao analisar a estrutura do seu código HTML/JS, a ideia central está excelente (distribuição de Poisson, lei do inverso do quadrado da distância, interface tátil e áudio), porém há uma limitação crítica que impede o experimento de funcionar na vida real:
-
-🚨 O Problema Principal no Código Atual
-As coordenadas youPos e sourcePos estão estáticas (fixas):
-
-JavaScript
-let sourcePos = { x: .72, y: .30 },
-  youPos = { x: .20, y: .75 };
-Como a posição do aluno (youPos) nunca muda quando ele anda pela escola ou pela sala, o valor da distância dist() será sempre exatamente o mesmo a cada clique no botão "MEDIR". O celular não sabe que o aluno está se movendo.
-
-💡 Três Formas de Fazer Funcionar na Prática
-1. Abordagem com GPS Real (Para pátios, quadras ou áreas abertas)
-Você usa a Geolocation API nativa dos navegadores (navigator.geolocation.watchPosition).
-
-Como funciona: Você define a latitude/longitude da "fonte radioativa" escondida em uma árvore/banco do pátio. Conforme os alunos andam com o celular, o GPS atualiza a coordenada youPos em tempo real e calcula a taxa de CPM dinâmica.
-
-2. Abordagem com Redes Wi-Fi / RSSI (Para dentro de sala de aula)
-O GPS comum costuma falhar ou perder precisão dentro de salas fechadas (com desvio de 5 a 15 metros).
-
-Como alternativa: Você pode usar o nível de sinal (RSSI) do Wi-Fi da escola ou emitir um sinal Bluetooth/Beacon, embora criar isso em uma Web App pura via navegador tenha restrições de permissão nos celulares.
-
-3. Abordagem Manual com QRs / Códigos de Sala (Sem necessidade de GPS)
-Como funciona: Você cola pequenos papéis com QR Codes ou números (ex: Ponto A1, Ponto A2, Ponto B5) em diferentes mesas/locais da sala. No app, o aluno seleciona ou escaneia em qual ponto ele está no momento, e o sistema calcula a distância até a fonte escondida no Ponto X.
-
-📐 Correção da Lei do Inverso do Quadrado da Distância
-No seu código, a fórmula usada para a taxa de contagem (CPM) é:
-
-CPM=BG+ 
-d 
-2
- 
-K
-​
- 
-A implementação matemática com a distribuição de Poisson está perfeita! Porém, atente-se a dois detalhes operacionais:
-
-Distância mínima (d 
-min
-​
- ): No seu JS está Math.max(.45, ...) para evitar divisão por zero ( 
-0
-K
-​
- ). Isso é ótimo, garante estabilidade física.
-
-Desbloqueio de Áudio no iOS/Android: Navegadores mobile bloqueiam o som até que o usuário interaja com a tela. Como você iniciou o AudioContext dentro do clique, está correto, mas vale garantir um "primeiro clique" para instanciar o áudio.
-
-🛠️ Código Ajustado (Versão com GPS Real)
-Abaixo está o trecho atualizado das funções de posição e leitura substituindo a estática pelo GPS do smartphone:
-
-JavaScript
-// Localização da Fonte (Exemplo: coordenadas de um ponto no pátio)
-const sourcePos = { lat: -22.9068, lng: -47.0616 }; 
-let youPos = { lat: 0, lng: 0 };
-let gpsActive = false;
-
-// Calcula distância real em metros entre duas coordenadas (Fórmula de Haversine)
-function getDistanceInMeters(lat1, lon1, lat2, lon2) {
-  const R = 6371e3; // Raio da Terra em metros
-  const φ1 = lat1 * Math.PI / 180, φ2 = lat2 * Math.PI / 180;
-  const Δφ = (lat2 - lat1) * Math.PI / 180;
-  const Δλ = (lon2 - lon1) * Math.PI / 180;
-
-  const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-            Math.cos(φ1) * Math.cos(φ2) *
-            Math.sin(Δλ/2) * Math.sin(Δλ/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-
-  return Math.max(0.5, R * c); // Distância mínima de 0.5m
-}
-
-// Inicia o monitoramento de GPS ao clicar em INICIAR
-function startGPS() {
-  if ("geolocation" in navigator) {
-    navigator.geolocation.watchPosition(
-      (pos) => {
-        youPos.lat = pos.coords.latitude;
-        youPos.lng = pos.coords.longitude;
-        gpsActive = true;
-      },
-      (err) => alert("Ative o GPS do celular para realizar o experimento!"),
-      { enableHighAccuracy: true, maximumAge: 1000, timeout: 5000 }
-    );
-  }
-}
-
-function dist() {
-  if (!gpsActive) return 100; // Caso o GPS ainda não tenha fixado
-  return getDistanceInMeters(youPos.lat, youPos.lng, sourcePos.lat, sourcePos.lng);
-}
-📋 Dicas de Aplicação Pedagógica
-Trabalhar a Natureza Estocástica da Radiação: Como você usou a distribuição de Poisson, aproveite para mostrar aos alunos que, mesmo parados no mesmo lugar, a contagem flutua (ex: 42, 38, 45, 39 CPM). Isso ajuda a explicar a aleatoriedade do decaimento radioativo.
-
-Blindagem Virtual: Você pode adicionar um botão "Inserir Placa de Chumbo" no app que divide o K por 2 (camada semirredutora), permitindo discutir blindagem e radiação ionizante.
-
-Hospedagem no GitHub Pages: Como você já organizou a estrutura para o GitHub, lembre-se de que o uso de GPS no navegador exige conexão HTTPS. O GitHub Pages fornece HTTPS gratuitamente por padrão, então funcionará perfeitamente nos celulares dos alunos sem necessidade de instalar aplicativos.
-
-E se a gente utilizar o sensor magnético do celular para tentar localizar uma fonte que seja um ímã?
-
-Utilizar o sensor de campo magnético (magnetômetro) do celular para detectar um ímã físico de verdade é uma ideia genial! Isso transforma a simulação em um experimento prático com física real e tátil, aumentando muito o engajamento dos alunos.
-
-Como o magnetômetro mede o campo magnético real ao redor do aparelho (em microteslas, μT), a taxa de CPM do "detector Geiger" pode ser calculada com base na intensidade do campo magnético detectado no instante.
-
-🔬 Como funciona a Física no Celular
-Campo Magnético Ambiente (Terra): O celular sempre detecta o campo magnético terrestre, que varia entre 30μT e 60μT. Esse valor servirá perfeitamente como o Background (Radiação de Fundo) no seu app.
-
-Aproximação do Ímã: À medida que o aluno aproxima o celular de um ímã (escondido sob uma mesa, dentro de uma caixa ou sob um livro), a intensidade total do campo (B) aumenta drasticamente.
-
-Mapeamento B→CPM: Convertemos a leitura do sensor magnético em uma taxa de CPM correspondente para a simulação.
-
-💻 Como implementar no navegador (Web Sensors API)
-Os navegadores mobile modernos suportam a API de Magnetometer. Para garantir compatibilidade com dispositivos mais antigos ou iOS, também usaremos o evento deviceorientation / devicemotion.
-
-Abaixo está o código JavaScript necessário para ler o sensor real do celular e alimentar a sua simulação de Poisson:
-
-JavaScript
-let rawB = 40; // Valor padrão inicial em microteslas (µT)
-let magnetometerActive = false;
-
-// 1. Tenta usar a API moderna de Magnetômetro
-if ('Magnetometer' in window) {
-  try {
-    const mag = new Magnetometer({ frequency: 10 });
-    mag.addEventListener('reading', () => {
-      // Calcula o módulo do vetor do campo magnético: B = √(x² + y² + z²)
-      rawB = Math.hypot(mag.x, mag.y, mag.z);
-      magnetometerActive = true;
-    });
-    mag.start();
-  } catch (e) {
-    console.log("Magnetometer API não suportada ou permissão negada.");
-  }
-}
-
-// 2. Fallback usando a API de Orientação/Movimento (suporte mais amplo)
-if (!magnetometerActive && window.DeviceMotionEvent) {
-  window.addEventListener('devicemotion', (event) => {
-    if (event.magneticField) {
-      const { x, y, z } = event.magneticField;
-      rawB = Math.hypot(x, y, z);
-    }
-  });
-}
-
-// 3. Função de leitura adaptada para converter Magnetismo (µT) em CPM
-function readFromMagnetometer() {
-  // BG padrão terrestre ≈ 40 µT. Subtraímos o fundo para pegar o excesso causado pelo ímã
-  const netField = Math.max(0, rawB - 40);
-  
-  // Fator de escala: converte o excesso de µT em taxa de contagem (CPM)
-  const meanCPM = BG + (netField * 15); 
-  
-  // Aplica a flutuação estocástica de Poisson mantendo o realismo radioativo
-  return poisson(meanCPM);
-}
-⚠️ Cuidados Práticos e Recomendações para a Aula
-Diferença de sensores nos celulares: A localização do chip do magnetômetro varia dependendo do modelo do celular (às vezes fica no topo, perto da câmera, às vezes no meio). É ótimo ensinar aos alunos a encontrar onde fica o "ponto sensível" do próprio aparelho!
-
-Escolha do Ímã: Use um ímã de Neodímio (mesmo que pequeno). Ímãs comuns de geladeira têm um campo muito fraco que só é detectado a 1–2 cm de distância, enquanto um ímã de neodímio médio pode ser detectado a 10–20 cm, permitindo uma varredura real pela sala.
-
-Permissões de HTTPS: Navegadores (especialmente o Chrome no Android e Safari no iOS) bloqueiam o acesso aos sensores se a página não estiver em HTTPS. Como você vai hospedar no GitHub Pages, o HTTPS é padrão e funcionará sem problemas.
-
-Atualize o código HTML original integrando a leitura do magnetômetro do celular para converter microteslas em CPM.
-
-Seu arquivo HTML atualizado está pronto!
-
-Ícone do app HTML
-radiolocator-v3-magnetometer
- HTML 
-Aberto
-Também preparei o pacote .zip atualizado pronto para subir diretamente no seu repositório do GitHub Pages (o arquivo interno já está nomeado como index.html):
-
-Ícone do app ZIP
-radiolocator-v3-github-pages
- ZIP 
-Aberto
-🧲 O que mudou nesta versão (v3.0 - Magnetômetro)
-Captura do Campo Magnético Real (μT):
-
-O código usa a Magnetometer API moderna do Chrome/Android e inclui fallback automático para a API de movimento/orientação (devicemotion), garantindo suporte na grande maioria dos navegadores mobile.
-
-Conversão Dinâmica B→CPM:
-
-O sistema lê o vetor tridimensional do campo magnético B= 
-B 
-x
-2
-​
- +B 
-y
-2
-​
- +B 
-z
-2
-​
- 
-
-​
- .
-
-O excesso de microteslas acima do campo terrestre (ΔB=B 
-medido
-​
- −B 
-fundo
-​
- ) é convertido para CPM mantendo a distribuição estocástica de Poisson para simular o comportamento aleatório da radiação.
-
-Botão ⚙ CALIBRAR:
-
-Como o campo magnético terrestre ou de estruturas metálicas da sala varia de local para local (entre 30μT e 60μT), o botão CALIBRAR permite que o aluno defina a leitura atual do ambiente como o Background de referência antes de iniciar a busca pelo ímã.
-
-Varredura Contínua:
-
-Além de permitir a medição manual com o botão "MEDIR", o aplicativo agora realiza leituras automáticas a cada 800ms assim que é iniciado, facilitando o uso do celular como um "sniffer" físico pela sala.
-
-💡 Dicas para a Atividade Prática na Escola
-A Fonte "Radioativa": Esconda um ímã de Neodímio sob uma mesa, dentro de um estojo ou atrás de uma cartolina.
-
-Sensibilidade do Celular: O sensor magnético de cada celular fica em uma posição diferente (geralmente próximo à câmera superior). Mostre aos alunos que aproximar diferentes partes do aparelho altera a sensibilidade da leitura!
-
-
-
-
-Suas conversas de Unicamp não são usadas para aprimorar nossos modelos. O Gemini é uma IA e pode cometer erros. Sua privacidade e o GeminiAbre em uma nova janela
-
 <!doctype html>
 <html lang="pt-BR">
 <head>
@@ -560,7 +51,7 @@ button:disabled{opacity:.38;cursor:not-allowed}
   <div class="signal"><div class="signalbar"><i id="bar"></i></div><div id="signalText" class="signaltext">TOQUE EM INICIAR</div></div>
   <div id="clicks" class="clicks"></div>
   <div class="info">
-    <div><small>BACKGROUND</small><b id="bgVal">40 µT</b></div>
+    <div><small>BACKGROUND</small><b id="bgVal">45 µT</b></div>
     <div><small>SENS. MAGNÉTICO</small><b id="uTVal">— µT</b></div>
     <div><small>MÁXIMA</small><b id="max">—</b></div>
   </div>
@@ -574,19 +65,17 @@ button:disabled{opacity:.38;cursor:not-allowed}
 </main>
 
 <script>
-let bgUT = 45; // Campo magnético terrestre padrão de fundo
+let bgUT = 45; 
 let currentUT = bgUT;
 let sensorActive = false;
 let running = false, startTime = 0, timerInt = null, maxCPM = 0, autoMeasureInt = null;
 
 const $ = id => document.getElementById(id);
 
-// Distribuição de Poisson para simular a flutuação estatística do decaimento radioativo
 function poisson(mean) {
   if (mean <= 0) return 0;
   let L = Math.exp(-mean);
   if (L === 0) {
-    // Aproximação normal para médias muito altas
     let u = 0; for(let i=0; i<12; i++) u += Math.random();
     return Math.max(0, Math.round(mean + Math.sqrt(mean) * (u - 6)));
   }
@@ -595,9 +84,7 @@ function poisson(mean) {
   return k - 1;
 }
 
-// Inicializa o Sensor Magnético do Celular
 function initMagnetometer() {
-  // 1. Tenta usar a Magnetometer API nativa (Chrome/Android modernos)
   if ('Magnetometer' in window) {
     try {
       const sensor = new Magnetometer({ frequency: 10 });
@@ -606,19 +93,13 @@ function initMagnetometer() {
         sensorActive = true;
         updateSensorUI();
       });
-      sensor.addEventListener('error', (event) => {
-        if (event.error.name === 'NotAllowedError') {
-          console.warn('Permissão negada para o magnetômetro.');
-        }
-      });
       sensor.start();
       return;
     } catch (e) {
-      console.log('Magnetometer API indisponível ou bloqueada:', e);
+      console.log('Magnetometer API indisponível:', e);
     }
   }
 
-  // 2. Fallback via DeviceOrientation / DeviceMotion (Suporte amplo em navegadores mobile)
   if (window.DeviceMotionEvent) {
     window.addEventListener('devicemotion', (e) => {
       if (e.magneticField && e.magneticField.x !== null) {
@@ -635,13 +116,8 @@ function updateSensorUI() {
 }
 
 function readCPM() {
-  // O excesso do campo magnético acidentado além do fundo é convertido em taxa de CPM
   const netUT = Math.max(0, currentUT - bgUT);
-  
-  // Fator de escala: Cada 1 µT acima do fundo gera ~18 CPM simulados
   const meanCPM = 40 + (netUT * 18);
-  
-  // Retorna com a flutuação estocástica física da radiação
   return poisson(meanCPM);
 }
 
@@ -697,7 +173,6 @@ function tick() {
   }
 }
 
-// Botão Calibrar: define a leitura magnética atual do ambiente como o Background (Fundo)
 $('calibBtn').onclick = () => {
   bgUT = currentUT;
   $('bgVal').textContent = bgUT.toFixed(1) + ' µT';
@@ -705,7 +180,6 @@ $('calibBtn').onclick = () => {
 };
 
 $('start').onclick = () => {
-  // Solicita permissão explícita no iOS se necessário
   if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
     DeviceOrientationEvent.requestPermission().then(state => {
       if (state === 'granted') initMagnetometer();
@@ -727,7 +201,6 @@ $('start').onclick = () => {
   clearInterval(autoMeasureInt);
   
   timerInt = setInterval(tick, 250);
-  // Atualiza automaticamente as medições a cada 800ms
   autoMeasureInt = setInterval(measure, 800);
 };
 
@@ -735,5 +208,3 @@ $('measure').onclick = measure;
 </script>
 </body>
 </html>
-radiolocator-v3-magnetometer.html
-Exibindo radiolocator-v3-magnetometer.html.
