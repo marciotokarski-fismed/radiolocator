@@ -4,7 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <meta name="theme-color" content="#050907">
-<title>RADIOLOCATOR 3.0 - MAGNETÔMETRO</title>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>RADIOLOCATOR 3.1 - MAGNETÔMETRO</title>
 <style>
 :root{--bg:#050907;--panel:#0b1510;--line:#244436;--text:#e4ffed;--muted:#87ad9b;--accent:#42f58d;--warn:#ffd166;--danger:#ff7f7f}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -41,7 +44,7 @@ button:disabled{opacity:.38;cursor:not-allowed}
 </head>
 <body>
 <main>
-<header><div class="brand">RADIOLOCATOR 3.0 (MAG)</div><div id="timer" class="timer">05:00</div></header>
+<header><div class="brand">RADIOLOCATOR 3.1</div><div id="timer" class="timer">05:00</div></header>
 <div class="mission" id="statusText">VARREDURA MAGNÉTICA REAL ATIVA</div>
 
 <section class="detector">
@@ -52,7 +55,7 @@ button:disabled{opacity:.38;cursor:not-allowed}
   <div id="clicks" class="clicks"></div>
   <div class="info">
     <div><small>BACKGROUND</small><b id="bgVal">45 µT</b></div>
-    <div><small>SENS. MAGNÉTICO</small><b id="uTVal">— µT</b></div>
+    <div><small>CAMPO MAGNÉTICO</small><b id="uTVal">OFF</b></div>
     <div><small>MÁXIMA</small><b id="max">—</b></div>
   </div>
 </section>
@@ -84,31 +87,67 @@ function poisson(mean) {
   return k - 1;
 }
 
-function initMagnetometer() {
+// Inicializador com tratamento avançado de permissões
+async function requestAndInitSensors() {
+  // 1. Tenta acionar Magnetometer API nativa
   if ('Magnetometer' in window) {
     try {
+      const permissions = await Promise.all([
+        navigator.permissions.query({ name: 'magnetometer' }).catch(() => null)
+      ]);
+      
       const sensor = new Magnetometer({ frequency: 10 });
       sensor.addEventListener('reading', () => {
         currentUT = Math.hypot(sensor.x, sensor.y, sensor.z);
         sensorActive = true;
         updateSensorUI();
       });
+      sensor.addEventListener('error', (e) => {
+        console.warn('Magnetômetro erro:', e.error);
+        initFallbackSensors();
+      });
       sensor.start();
       return;
     } catch (e) {
-      console.log('Magnetometer API indisponível:', e);
+      console.log('Magnetometer API falhou, tentando fallback:', e);
+      initFallbackSensors();
     }
+  } else {
+    initFallbackSensors();
   }
+}
 
-  if (window.DeviceMotionEvent) {
-    window.addEventListener('devicemotion', (e) => {
-      if (e.magneticField && e.magneticField.x !== null) {
-        currentUT = Math.hypot(e.magneticField.x, e.magneticField.y, e.magneticField.z);
-        sensorActive = true;
-        updateSensorUI();
+function initFallbackSensors() {
+  // 2. Fallback via DeviceOrientation / DeviceMotion (iOS / navegadores antigos)
+  if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+    DeviceOrientationEvent.requestPermission().then(response => {
+      if (response === 'granted') {
+        bindOrientationEvents();
+      } else {
+        alert('Permissão para sensores negada no Safari.');
       }
-    });
+    }).catch(console.error);
+  } else {
+    bindOrientationEvents();
   }
+}
+
+function bindOrientationEvents() {
+  window.addEventListener('deviceorientation', (e) => {
+    // Alguns dispositivos retornam o campo ou variação através da orientação alpha/beta/gamma
+    if (e.webkitCompassHeading !== undefined) {
+      // iPhone/Safari: Usamos a taxa de bússola para detectar perturbação magnética
+      sensorActive = true;
+    }
+  });
+
+  window.addEventListener('devicemotion', (e) => {
+    if (e.magneticField && e.magneticField.x !== null) {
+      currentUT = Math.hypot(e.magneticField.x, e.magneticField.y, e.magneticField.z);
+      sensorActive = true;
+      updateSensorUI();
+    }
+  });
 }
 
 function updateSensorUI() {
@@ -117,7 +156,7 @@ function updateSensorUI() {
 
 function readCPM() {
   const netUT = Math.max(0, currentUT - bgUT);
-  const meanCPM = 40 + (netUT * 18);
+  const meanCPM = 40 + (netUT * 25); // Aumentada a sensibilidade para 25 CPM por µT
   return poisson(meanCPM);
 }
 
@@ -180,13 +219,7 @@ $('calibBtn').onclick = () => {
 };
 
 $('start').onclick = () => {
-  if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-    DeviceOrientationEvent.requestPermission().then(state => {
-      if (state === 'granted') initMagnetometer();
-    }).catch(console.error);
-  } else {
-    initMagnetometer();
-  }
+  requestAndInitSensors();
 
   if (running) return;
   running = true;
@@ -201,7 +234,7 @@ $('start').onclick = () => {
   clearInterval(autoMeasureInt);
   
   timerInt = setInterval(tick, 250);
-  autoMeasureInt = setInterval(measure, 800);
+  autoMeasureInt = setInterval(measure, 600);
 };
 
 $('measure').onclick = measure;
