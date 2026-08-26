@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta name="theme-color" content="#050907">
-<title>RADIOLOCATOR 3.3 - PERMISSÃO DE SENSOR</title>
+<title>RADIOLOCATOR 3.5 - DETECTOR DE CAMPO</title>
 <style>
 :root{--bg:#050907;--panel:#0b1510;--line:#244436;--text:#e4ffed;--muted:#87ad9b;--accent:#42f58d;--warn:#ffd166;--danger:#ff7f7f}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -42,14 +42,14 @@ button:disabled{opacity:.38;cursor:not-allowed}
 </head>
 <body>
 <main>
-<header><div class="brand">RADIOLOCATOR 3.3</div><div id="timer" class="timer">05:00</div></header>
-<div class="mission" id="statusText">TOQUE EM INICIAR PARA ATIVAR O SENSOR</div>
+<header><div class="brand">RADIOLOCATOR 3.5</div><div id="timer" class="timer">05:00</div></header>
+<div class="mission" id="statusText">VARREDURA DE CAMPO</div>
 
 <section class="detector">
-  <div class="label">DETECTOR VIRTUAL (MAG → CPM)</div>
+  <div class="label">DETECTOR VIRTUAL (SENSOR → CPM)</div>
   <div id="cpm" class="reading">—</div>
   <div class="unit">CPM</div>
-  <div class="signal"><div class="signalbar"><i id="bar"></i></div><div id="signalText" class="signaltext">PERMISSÃO PENDENTE</div></div>
+  <div class="signal"><div class="signalbar"><i id="bar"></i></div><div id="signalText" class="signaltext">TOQUE EM INICIAR</div></div>
   <div id="clicks" class="clicks"></div>
   <div class="info">
     <div><small>BACKGROUND</small><b id="bgVal">40 µT</b></div>
@@ -66,9 +66,8 @@ button:disabled{opacity:.38;cursor:not-allowed}
 </main>
 
 <script>
-let bgUT = 40; 
-let currentUT = 40;
-let lastAlpha = null;
+let bgUT = 40.0;
+let currentUT = 40.0;
 let running = false, startTime = 0, timerInt = null, maxCPM = 0, autoMeasureInt = null;
 
 const $ = id => document.getElementById(id);
@@ -85,49 +84,37 @@ function poisson(mean) {
   return k - 1;
 }
 
-// Ativação e Pedido de Permissão
-async function enableSensors() {
-  // Pedido explícito para iOS/Safari
-  if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-    try {
-      const permission = await DeviceOrientationEvent.requestPermission();
-      if (permission !== 'granted') {
-        alert('Permissão para sensores negada pelo usuário.');
-        return false;
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  }
-
-  // Escuta perturbações no vetor magnético via devicemotion / orientation
+// Captura movimento/orientação do aparelho livre de bloqueios do Chrome
+function initSensors() {
   window.addEventListener('devicemotion', (e) => {
-    if (e.magneticField && e.magneticField.x !== null) {
-      currentUT = Math.hypot(e.magneticField.x, e.magneticField.y, e.magneticField.z);
+    if (!running) return;
+    const acc = e.accelerationIncludingGravity;
+    if (acc && acc.x !== null) {
+      // Mede o vetor de aceleração total
+      const totalAcc = Math.hypot(acc.x, acc.y, acc.z);
+      const deltaAcc = Math.abs(totalAcc - 9.8);
+      // Converte a variação de posição/movimento em microteslas (µT)
+      currentUT = bgUT + (deltaAcc * 12.0);
       $('uTVal').textContent = currentUT.toFixed(1) + ' µT';
     }
   }, true);
 
   window.addEventListener('deviceorientation', (e) => {
-    if (e.alpha !== null) {
-      if (lastAlpha === null) lastAlpha = e.alpha;
-      // Calcula o desvio magnético provocado pelo ímã na bússola
-      let diff = Math.abs(e.alpha - lastAlpha);
-      if (diff > 180) diff = 360 - diff;
-      
-      // Converte o desvio da bússola em leitura virtual de microteslas (µT)
-      currentUT = bgUT + (diff * 4.5);
-      $('uTVal').textContent = currentUT.toFixed(1) + ' µT';
-      lastAlpha = e.alpha;
+    if (!running) return;
+    if (e.beta !== null && e.gamma !== null) {
+      // Usa a inclinação do aparelho como variação do campo
+      const tilt = Math.abs(e.beta) + Math.abs(e.gamma);
+      if (currentUT === bgUT) {
+        currentUT = bgUT + (tilt * 0.4);
+        $('uTVal').textContent = currentUT.toFixed(1) + ' µT';
+      }
     }
   }, true);
-
-  return true;
 }
 
 function readCPM() {
   const delta = Math.max(0, currentUT - bgUT);
-  const meanCPM = 40 + (delta * 15); 
+  const meanCPM = 40 + (delta * 14); 
   return poisson(meanCPM);
 }
 
@@ -186,11 +173,11 @@ function tick() {
 $('calibBtn').onclick = () => {
   bgUT = currentUT;
   $('bgVal').textContent = bgUT.toFixed(1) + ' µT';
-  alert('Detector calibrado! Fundo ambiente ajustado para ' + bgUT.toFixed(1) + ' µT.');
+  alert('Calibrado! Novo valor base: ' + bgUT.toFixed(1) + ' µT.');
 };
 
-$('start').onclick = async () => {
-  await enableSensors();
+$('start').onclick = () => {
+  initSensors();
 
   if (running) return;
   running = true;
@@ -205,7 +192,7 @@ $('start').onclick = async () => {
   clearInterval(autoMeasureInt);
   
   timerInt = setInterval(tick, 250);
-  autoMeasureInt = setInterval(measure, 500);
+  autoMeasureInt = setInterval(measure, 400);
 };
 
 $('measure').onclick = measure;
